@@ -1,0 +1,312 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>حاسبة النوافذ والأبواب</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #f9f9f9;
+    padding: 20px;
+  }
+  .container {
+    max-width: 700px;
+    background: #fff;
+    margin: auto;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 12px rgba(0,0,0,0.1);
+  }
+  h1 {
+    text-align: center;
+    color: #005f99;
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+  select, input[type=number] {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+  }
+  button {
+    margin-top: 20px;
+    background-color: #007acc;
+    color: white;
+    border: none;
+    padding: 12px;
+    width: 100%;
+    font-size: 1.1rem;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #005f99;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 25px;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: center;
+  }
+  th {
+    background-color: #007acc;
+    color: white;
+  }
+  .total {
+    text-align: center;
+    font-weight: bold;
+    margin-top: 25px;
+    font-size: 1.3rem;
+    color: #005f99;
+  }
+  .remove-btn {
+    color: red;
+    cursor: pointer;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>حاسبة النوافذ والأبواب</h1>
+
+    <label for="type">نوع المنتج:</label>
+    <select id="type">
+      <option value="نافذة">نافذة</option>
+      <option value="باب">باب</option>
+      <option value="أبواب متحركة">أبواب متحركة</option>
+    </select>
+
+    <label for="product">المنتج:</label>
+    <select id="product"></select>
+
+    <label for="variant">النمط:</label>
+    <select id="variant"></select>
+
+    <label for="size">المساحة (متر مربع):</label>
+    <input type="number" id="size" value="2.2" min="0.1" step="0.1" />
+
+    <label for="addons">الإضافات:</label>
+    <select id="addons">
+      <option value="بدون">بدون</option>
+    </select>
+
+    <button id="addBtn">أضف للحساب</button>
+
+    <table id="cartTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>نوع المنتج</th>
+          <th>المنتج</th>
+          <th>النمط</th>
+          <th>المساحة (م²)</th>
+          <th>الإضافة</th>
+          <th>السعر (ريال)</th>
+          <th>حذف</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="total" id="totalPrice" style="display:none;">السعر النهائي: 0 ريال</div>
+  </div>
+
+<script>
+  const data = {
+    "نافذة": {
+      "سنجل جلاس سنجل فريم": { 
+        "ثابت": 20, 
+        "حركة": 43, 
+        "حركتين": 47,
+        "addons": ["بدون", "شبك الباب 39", "شبك الفولدنج 18", "شبك السلايد 14"]
+      }
+    },
+    "باب": {
+      "ألمنيوم": {
+        "ثابت": 165,
+        "حركة": 165,
+        "حركتين": 165,
+        "addons": ["بدون"]
+      },
+      "WPC": {
+        "ثابت": 165,
+        "حركة": 165,
+        "حركتين": 165,
+        "addons": ["بدون"]
+      },
+      "باب دورة مياه": {
+        "ثابت": 165,
+        "حركة": 165,
+        "حركتين": 165,
+        "addons": ["بدون"]
+      }
+    },
+    "أبواب متحركة": {
+      "سحب": {
+        "ثابت": 34,
+        "addons": ["بدون", "ستارة"]
+      },
+      "فولدنج": {
+        "ثابت": 34,
+        "addons": ["بدون", "ستارة"]
+      }
+    }
+  };
+
+  const typeSelect = document.getElementById("type");
+  const productSelect = document.getElementById("product");
+  const variantSelect = document.getElementById("variant");
+  const addonsSelect = document.getElementById("addons");
+  const sizeInput = document.getElementById("size");
+  const addBtn = document.getElementById("addBtn");
+  const cartTable = document.getElementById("cartTable");
+  const tbody = cartTable.querySelector("tbody");
+  const totalPriceDiv = document.getElementById("totalPrice");
+
+  let cart = [];
+
+  function populateProducts() {
+    const type = typeSelect.value;
+    productSelect.innerHTML = "";
+    if (!data[type]) return;
+    Object.keys(data[type]).forEach(product => {
+      const opt = document.createElement("option");
+      opt.value = product;
+      opt.textContent = product;
+      productSelect.appendChild(opt);
+    });
+    populateVariants();
+  }
+
+  function populateVariants() {
+    const type = typeSelect.value;
+    const product = productSelect.value;
+    variantSelect.innerHTML = "";
+    addonsSelect.innerHTML = "";
+
+    if (!data[type] || !data[type][product]) return;
+    const variants = data[type][product];
+    // For أبواب متحركة "ثابت" فقط, for others "ثابت", "حركة", "حركتين"
+    let variantKeys = [];
+    if(type === "أبواب متحركة"){
+      variantKeys = ["ثابت"];
+    } else {
+      variantKeys = ["ثابت", "حركة", "حركتين"];
+    }
+    variantKeys.forEach(v => {
+      if(variants[v] !== undefined) {
+        const opt = document.createElement("option");
+        opt.value = v;
+        opt.textContent = v;
+        variantSelect.appendChild(opt);
+      }
+    });
+
+    variants.addons.forEach(addon => {
+      const opt = document.createElement("option");
+      opt.value = addon;
+      opt.textContent = addon;
+      addonsSelect.appendChild(opt);
+    });
+  }
+
+  function calculatePrice(item) {
+    const {type, product, variant, size, addon} = item;
+    const pricePerM2 = data[type][product][variant];
+    let price = 0;
+    if(type === "باب") {
+      // الأبواب (ألمنيوم، WPC، دورة مياه) سعر ثابت على 2.2 م2 فقط (المساحة لا تؤثر)
+      price = pricePerM2;
+    } else if(type === "أبواب متحركة") {
+      // ثابت مضروب في المساحة (حسب الطلب)
+      price = pricePerM2 * size;
+    } else {
+      // النوافذ مضروبة في المساحة
+      price = pricePerM2 * size;
+    }
+    // ممكن إضافة زيادة بسيطة حسب الإضافة (هنا نضيف 0 لأن لم تذكر أسعار إضافية)
+    // يمكن تعديل هنا إذا تريد أسعار الإضافات
+    return price.toFixed(2);
+  }
+
+  function renderCart() {
+    tbody.innerHTML = "";
+    if(cart.length === 0) {
+      cartTable.style.display = "none";
+      totalPriceDiv.style.display = "none";
+      return;
+    }
+    cartTable.style.display = "";
+    totalPriceDiv.style.display = "";
+    let total = 0;
+    cart.forEach((item, i) => {
+      const tr = document.createElement("tr");
+      const price = parseFloat(calculatePrice(item));
+      total += price;
+      tr.innerHTML = `
+        <td>${item.type}</td>
+        <td>${item.product}</td>
+        <td>${item.variant}</td>
+        <td>${item.size}</td>
+        <td>${item.addon}</td>
+        <td>${price} ريال</td>
+        <td><span class="remove-btn" data-index="${i}">✖</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+    totalPriceDiv.textContent = `السعر النهائي: ${total.toFixed(2)} ريال`;
+  }
+
+  typeSelect.addEventListener("change", () => {
+    populateProducts();
+  });
+
+  productSelect.addEventListener("change", () => {
+    populateVariants();
+  });
+
+  addBtn.addEventListener("click", () => {
+    const type = typeSelect.value;
+    const product = productSelect.value;
+    const variant = variantSelect.value;
+    const addon = addonsSelect.value;
+    let size = parseFloat(sizeInput.value);
+    if(isNaN(size) || size <= 0) {
+      alert("يرجى إدخال مساحة صحيحة أكبر من صفر.");
+      return;
+    }
+    if(type === "باب") {
+      // إذا نوع باب، نجبر المساحة على 2.2 (لأن السعر ثابت)
+      size = 2.2;
+    }
+    cart.push({type, product, variant, size, addon});
+    renderCart();
+  });
+
+  tbody.addEventListener("click", (e) => {
+    if(e.target.classList.contains("remove-btn")) {
+      const index = parseInt(e.target.dataset.index);
+      cart.splice(index, 1);
+      renderCart();
+    }
+  });
+
+  // البداية: ملء المنتجات والأنماط
+  populateProducts();
+  populateVariants();
+</script>
+</body>
+</html>
